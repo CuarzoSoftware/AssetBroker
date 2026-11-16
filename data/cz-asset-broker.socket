@@ -1,0 +1,10 @@
+[Unit]
+Description=Cuarzo asset broker socket
+Documentation=https://github.com/CuarzoSoftware/AssetBroker
+
+[Socket]
+ListenSequentialPacket=%t/cz-asset-broker
+SocketMode=0600
+
+[Install]
+WantedBy=sockets.target

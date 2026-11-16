@@ -1,0 +1,14 @@
+option('build_service',
+    type : 'boolean',
+    value : true,
+    description : 'Build the cz-asset-broker service')
+
+option('build_examples',
+    type : 'boolean',
+    value : true,
+    description : 'Build the examples')
+
+option('systemd_user_unit_dir',
+    type : 'string',
+    value : '',
+    description : 'Where to install the systemd user units (socket activation). Default: <prefix>/lib/systemd/user. "no" to skip')

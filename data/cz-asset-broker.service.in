@@ -1,0 +1,9 @@
+[Unit]
+Description=Cuarzo asset broker (icons and assets shared between apps as DMA-bufs)
+Documentation=https://github.com/CuarzoSoftware/AssetBroker
+Requires=cz-asset-broker.socket
+After=cz-asset-broker.socket
+
+[Service]
+ExecStart=@BINDIR@/cz-asset-broker
+Restart=on-failure
