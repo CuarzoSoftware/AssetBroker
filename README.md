@@ -1,5 +1,7 @@
 # AssetBroker
 
+> This project is part of the [Cuarzo Framework](https://github.com/CuarzoSoftware/Cuarzo). Follow the instructions there to build and install it.
+
 Icon and image loading for Cuarzo apps. Assets are either generated in each app or, when the `cz-asset-broker` service is running, generated once by the service and shared with every app as DMA-bufs, so apps use the same GPU buffers.
 
 ## Library
