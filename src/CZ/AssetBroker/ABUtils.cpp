@@ -190,6 +190,14 @@ std::string ABUtils::IconKeyString(const ABIconKey &key) noexcept
     return str;
 }
 
+std::string ABUtils::ShadowString(const ABShadow *shadow) noexcept
+{
+    if (!shadow)
+        return {};
+
+    return std::format("s{}:{}:{}:{}:{:08x}", shadow->padding, shadow->radius, shadow->offsetX, shadow->offsetY, shadow->color);
+}
+
 std::string ABUtils::GenKeyString(const ABGenKey &key) noexcept
 {
     std::string str { key.generator };

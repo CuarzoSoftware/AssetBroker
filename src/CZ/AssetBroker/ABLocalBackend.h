@@ -11,9 +11,9 @@
 class CZ::ABLocalBackend final : public ABBackend
 {
 public:
-    Result load(const std::filesystem::path &path, SkISize box, RDevice *device) noexcept override
+    Result load(const std::filesystem::path &path, SkISize box, RDevice *device, const ABShadow *shadow = nullptr) noexcept override
     {
-        return m_rasterizer.load(path, box, device);
+        return m_rasterizer.load(path, box, device, nullptr, shadow);
     }
 
     Result generate(const ABGenKey &key, RDevice *device) noexcept

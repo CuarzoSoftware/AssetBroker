@@ -1,10 +1,46 @@
 #include <CZ/AssetBroker/ABProtocol.h>
+#include <CZ/AssetBroker/ABShadow.h>
+#include <cmath>
 #include <sys/socket.h>
 #include <cstring>
 #include <cstdlib>
 #include <cerrno>
 
 using namespace CZ;
+
+ABProtocol::Shadow ABProtocol::ToWire(const ABShadow *shadow) noexcept
+{
+    Shadow wire {};
+
+    if (!shadow)
+        return wire;
+
+    wire.enabled = 1;
+    wire.padding = shadow->padding;
+    wire.radius = shadow->radius;
+    wire.offsetX = shadow->offsetX;
+    wire.offsetY = shadow->offsetY;
+    wire.color = shadow->color;
+    return wire;
+}
+
+bool ABProtocol::FromWire(const Shadow &wire, std::optional<ABShadow> &out) noexcept
+{
+    out.reset();
+
+    if (!wire.enabled)
+        return true;
+
+    // Sane values only (a huge blur would be very costly to draw)
+    if (wire.padding < 0 || wire.padding > MaxBoxSize / 2 ||
+        !std::isfinite(wire.radius) || wire.radius < 0.f || wire.radius > 2.f ||
+        !std::isfinite(wire.offsetX) || std::abs(wire.offsetX) > 2.f ||
+        !std::isfinite(wire.offsetY) || std::abs(wire.offsetY) > 2.f)
+        return false;
+
+    out = ABShadow { wire.padding, wire.radius, wire.offsetX, wire.offsetY, wire.color };
+    return true;
+}
 
 std::filesystem::path ABProtocol::SocketPath() noexcept
 {

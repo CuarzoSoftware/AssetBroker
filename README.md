@@ -31,6 +31,20 @@ frame.setImageProvider(CZ::ABCore::IconProvider(key));
 auto picture { ab->image("/path/to/picture.png", { 512, 0 }) };
 ```
 
+### Shadows
+
+Icons and images can be drawn over a drop shadow (`ABShadow`), like desktop icons or dock tiles. The icon and its shadow are one image, shared like any other asset. The image keeps the requested box, with the icon fitted inside it minus `padding` pixels on each side. The blur and offset are fractions of the icon size, so the shadow looks the same at any size:
+
+```cpp
+// A 64 px icon in a 94 px image, with 15 px of room on each side for its shadow
+CZ::ABShadow shadow { .padding = 15, .radius = 15.f / 64.f, .offsetY = 2.f / 64.f, .color = 0x66000000 };
+auto shadowed { ab->icon(key, { 94, 94 }, nullptr, &shadow) };
+
+// For an AKImageFrame that extends `radius` times the icon size past the icon on each side
+// (the padding is computed for each size)
+frame.setImageProvider(CZ::ABCore::IconProvider(key, nullptr, shadow));
+```
+
 Images are shared: requesting the same icon, size and device again returns the same `RImage` while some copy is alive. When the last copy is destroyed the image is kept for a short grace period, then released.
 
 | Mode | Behavior |

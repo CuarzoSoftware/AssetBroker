@@ -161,7 +161,7 @@ bool ABRemoteBackend::waitReply(void *data, size_t size, std::vector<CZSpFd> &fd
     return true;
 }
 
-ABBackend::Result ABRemoteBackend::load(const std::filesystem::path &path, SkISize box, RDevice *device) noexcept
+ABBackend::Result ABRemoteBackend::load(const std::filesystem::path &path, SkISize box, RDevice *device, const ABShadow *shadow) noexcept
 {
     if (!connected() || !device)
         return {};
@@ -180,6 +180,7 @@ ABBackend::Result ABRemoteBackend::load(const std::filesystem::path &path, SkISi
     msg.device = device->id();
     msg.boxWidth = box.width();
     msg.boxHeight = box.height();
+    msg.shadow = ABProtocol::ToWire(shadow);
 
     alignas(UInt64) char buffer[sizeof(ABProtocol::Load) + ABProtocol::MaxPathSize];
     memcpy(buffer, &msg, sizeof(msg));
@@ -187,7 +188,7 @@ ABBackend::Result ABRemoteBackend::load(const std::filesystem::path &path, SkISi
     return request(buffer, sizeof(msg) + pathStr.size(), msg.serial, device, path.native());
 }
 
-ABBackend::Result ABRemoteBackend::loadIcon(const ABIconKey &key, SkISize box, RDevice *device) noexcept
+ABBackend::Result ABRemoteBackend::loadIcon(const ABIconKey &key, SkISize box, RDevice *device, const ABShadow *shadow) noexcept
 {
     if (!connected() || !device || (key.names.empty() && key.appId.empty()))
         return {};
@@ -221,6 +222,7 @@ ABBackend::Result ABRemoteBackend::loadIcon(const ABIconKey &key, SkISize box, R
     msg.contexts = key.contexts;
     msg.nameCount = key.names.size();
     msg.themeCount = key.themes.size();
+    msg.shadow = ABProtocol::ToWire(shadow);
 
     alignas(UInt64) char buffer[ABProtocol::MaxMessageSize];
     memcpy(buffer, &msg, sizeof(msg));

@@ -11,6 +11,7 @@
 #include <CZ/skia/core/SkData.h>
 #include <CZ/skia/core/SkImage.h>
 #include <CZ/skia/core/SkStream.h>
+#include <CZ/skia/effects/SkImageFilters.h>
 #include <CZ/skia/modules/svg/include/SkSVGDOM.h>
 #include <CZ/skia/modules/svg/include/SkSVGSVG.h>
 
@@ -176,7 +177,37 @@ ABRasterizer::Result ABRasterizer::generate(const ABGenKey &key, RDevice *device
     return result;
 }
 
-ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISize box, RDevice *device, const RImageConstraints *constraints) noexcept
+bool ABRasterizer::DrawShadow(const SkBitmap &content, SkISize box, const ABShadow &shadow, SkBitmap &out) noexcept
+{
+    if (content.empty())
+        return false;
+
+    const Int32 padding { std::max(0, shadow.padding) };
+    const SkISize size { box.width() > 0 ? box.width() : content.width() + 2 * padding,
+                         box.height() > 0 ? box.height() : content.height() + 2 * padding };
+
+    if (size.isEmpty() || !out.tryAllocPixels(content.info().makeDimensions(size)))
+        return false;
+
+    SkCanvas canvas { out };
+    canvas.clear(SK_ColorTRANSPARENT);
+
+    // Its blur and offset follow the icon's size (its larger side)
+    const SkScalar iconSize { SkScalar(std::max(content.width(), content.height())) };
+    const SkScalar sigma { shadow.radius * iconSize / 3.f };
+
+    SkPaint paint;
+    paint.setAntiAlias(true);
+    paint.setImageFilter(SkImageFilters::DropShadow(shadow.offsetX * iconSize, shadow.offsetY * iconSize,
+                                                    sigma, sigma, shadow.color, nullptr));
+
+    // Centered at whole pixels: drawn 1:1, so it stays sharp
+    canvas.drawImage(content.asImage(), SkScalar((size.width() - content.width()) / 2), SkScalar((size.height() - content.height()) / 2),
+                     SkSamplingOptions(), &paint);
+    return true;
+}
+
+ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISize box, RDevice *device, const RImageConstraints *constraints, const ABShadow *shadow) noexcept
 {
     auto core { RCore::Get() };
 
@@ -212,6 +243,40 @@ ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISi
     box.fWidth = std::clamp(box.fWidth, 0, 16384);
     box.fHeight = std::clamp(box.fHeight, 0, 16384);
 
+    // With a shadow, the content is fitted in the box minus the room for it (the result keeps the box)
+    const SkISize outBox { box };
+
+    if (shadow)
+    {
+        const Int32 room { 2 * std::max(0, shadow->padding) };
+
+        if (box.width() > 0)  box.fWidth  = std::max(1, box.width() - room);
+        if (box.height() > 0) box.fHeight = std::max(1, box.height() - room);
+    }
+
+    // The content as is, or over its shadow
+    const auto finish = [&](const SkBitmap &bitmap, std::shared_ptr<void> keepAlive) -> Result
+    {
+        Result result;
+
+        if (shadow)
+        {
+            SkBitmap shadowed;
+
+            if (!DrawShadow(bitmap, outBox, *shadow, shadowed))
+                return {};
+
+            result.image = Upload(shadowed, *format, cons);
+        }
+        else
+            result.image = Upload(bitmap, *format, cons);
+
+        if (result.image)
+            result.keepAlive = std::move(keepAlive);
+
+        return result;
+    };
+
     const bool svgFirst { HasSVGExtension(path) };
 
     for (int attempt = 0; attempt < 2; attempt++)
@@ -244,14 +309,7 @@ ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISi
                              size.height() / source->intrinsicSize.height());
 
             source->dom->render(&canvas);
-
-            Result result;
-            result.image = Upload(bitmap, *format, cons);
-
-            if (result.image)
-                result.keepAlive = source;
-
-            return result;
+            return finish(bitmap, source);
         }
         else
         {
@@ -282,10 +340,7 @@ ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISi
             paint.setAntiAlias(true);
             canvas.drawImageRect(image, SkRect::MakeIWH(image->width(), image->height()), SkRect::Make(size),
                                  sampling, &paint, SkCanvas::kFast_SrcRectConstraint);
-
-            Result result;
-            result.image = Upload(bitmap, *format, cons);
-            return result;
+            return finish(bitmap, nullptr);
         }
     }
 

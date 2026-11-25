@@ -4,6 +4,7 @@
 #include <CZ/AssetBroker/AB.h>
 #include <CZ/Core/CZSpFd.h>
 #include <filesystem>
+#include <optional>
 #include <vector>
 
 /**
@@ -15,7 +16,8 @@
  *
  * - Hello      (client → server): first message, carries the protocol version.
  * - HelloReply (server → client): the server's version. The client disconnects if it differs.
- * - Load       (client → server): rasterize a file fitted in a box, for a DRM device.
+ * - Load       (client → server): rasterize a file fitted in a box (with an optional shadow, see
+ *                                  ABShadow), for a DRM device.
  *                                  Followed by the path bytes (not NUL terminated).
  * - LoadIcon   (client → server): look up an icon (the parameters of
  *                                  XDGIconThemeManager::findIcon(), see ABIconKey) and rasterize
@@ -35,7 +37,7 @@
  */
 namespace CZ::ABProtocol
 {
-    inline constexpr UInt32 Version { 1 };
+    inline constexpr UInt32 Version { 2 }; // 2: shadows (Shadow in Load and LoadIcon)
     inline constexpr size_t MaxMessageSize { 8192 };
     inline constexpr size_t MaxPathSize { 4096 };
     inline constexpr Int32  MaxBoxSize { 4096 };
@@ -74,6 +76,17 @@ namespace CZ::ABProtocol
         UInt32 version { Version };
     };
 
+    /// An optional drop shadow (see ABShadow), part of Load and LoadIcon.
+    struct Shadow
+    {
+        Int32 enabled {};       ///< 0: no shadow (the other fields are ignored)
+        Int32 padding {};
+        float radius {};
+        float offsetX {};
+        float offsetY {};
+        UInt32 color {};
+    };
+
     struct Load
     {
         Op op { Op::Load };
@@ -82,6 +95,7 @@ namespace CZ::ABProtocol
         UInt64 device {};       ///< dev_t of the DRM device the image is for
         Int32 boxWidth {};      ///< Fit the image in this box (0: unconstrained)
         Int32 boxHeight {};
+        Shadow shadow {};
     };
 
     struct LoadIcon
@@ -98,6 +112,7 @@ namespace CZ::ABProtocol
         UInt32 contexts {};
         UInt32 nameCount {};
         UInt32 themeCount {};
+        Shadow shadow {};
     };
 
     inline constexpr size_t MaxIconPayloadSize { MaxMessageSize - sizeof(LoadIcon) };
@@ -137,6 +152,12 @@ namespace CZ::ABProtocol
     };
 
     inline constexpr size_t MaxReleaseIds { (MaxMessageSize - sizeof(Release)) / sizeof(UInt64) };
+
+    /// @p shadow (nullptr: none) for a message.
+    Shadow ToWire(const ABShadow *shadow) noexcept;
+
+    /// A received shadow. False if it's invalid (e.g. a negative padding). @p out is empty if not enabled.
+    bool FromWire(const Shadow &wire, std::optional<ABShadow> &out) noexcept;
 
     /// $CZ_ASSET_BROKER_SOCKET if set, otherwise $XDG_RUNTIME_DIR/cz-asset-broker. Empty if neither is set.
     std::filesystem::path SocketPath() noexcept;

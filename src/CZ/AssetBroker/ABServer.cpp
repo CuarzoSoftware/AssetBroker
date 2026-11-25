@@ -336,7 +336,7 @@ bool ABServer::handleLoad(Client &client, const char *data, size_t size) noexcep
     if (!path.is_absolute())
         return sendFailure(client, reply, ABProtocol::Status::InvalidRequest);
 
-    return sendAsset(client, reply, path, request.boxWidth, request.boxHeight, request.device);
+    return sendAsset(client, reply, path, request.boxWidth, request.boxHeight, request.device, request.shadow);
 }
 
 bool ABServer::handleLoadIcon(Client &client, const char *data, size_t size) noexcept
@@ -415,7 +415,7 @@ bool ABServer::handleLoadIcon(Client &client, const char *data, size_t size) noe
     if (path.empty())
         return sendFailure(client, reply, ABProtocol::Status::NotFound);
 
-    return sendAsset(client, reply, path, request.boxWidth, request.boxHeight, request.device);
+    return sendAsset(client, reply, path, request.boxWidth, request.boxHeight, request.device, request.shadow);
 }
 
 bool ABServer::sendFailure(Client &client, ABProtocol::LoadReply &reply, ABProtocol::Status status) noexcept
@@ -424,10 +424,16 @@ bool ABServer::sendFailure(Client &client, ABProtocol::LoadReply &reply, ABProto
     return ABProtocol::Send(client.source->fd(), &reply, sizeof(reply));
 }
 
-bool ABServer::sendAsset(Client &client, ABProtocol::LoadReply &reply, const std::filesystem::path &path, Int32 boxWidth, Int32 boxHeight, UInt64 deviceId) noexcept
+bool ABServer::sendAsset(Client &client, ABProtocol::LoadReply &reply, const std::filesystem::path &path, Int32 boxWidth, Int32 boxHeight,
+                         UInt64 deviceId, const ABProtocol::Shadow &wireShadow) noexcept
 {
-    if (boxWidth < 0 || boxWidth > ABProtocol::MaxBoxSize || boxHeight < 0 || boxHeight > ABProtocol::MaxBoxSize)
+    std::optional<ABShadow> shadow;
+
+    if (boxWidth < 0 || boxWidth > ABProtocol::MaxBoxSize || boxHeight < 0 || boxHeight > ABProtocol::MaxBoxSize ||
+        !ABProtocol::FromWire(wireShadow, shadow))
         return sendFailure(client, reply, ABProtocol::Status::InvalidRequest);
+
+    const ABShadow *shadowPtr { shadow ? &*shadow : nullptr };
 
     std::error_code ec;
     const auto canonical { std::filesystem::canonical(path, ec) };
@@ -440,11 +446,11 @@ bool ABServer::sendAsset(Client &client, ABProtocol::LoadReply &reply, const std
     if (!device || !device->gbmDevice())
         return sendFailure(client, reply, ABProtocol::Status::UnsupportedDevice);
 
-    const std::string key { std::format("{}:{}x{}:{}", device->id(), boxWidth, boxHeight, canonical.native()) };
+    const std::string key { std::format("{}:{}x{}:{}:{}", device->id(), boxWidth, boxHeight, ABUtils::ShadowString(shadowPtr), canonical.native()) };
 
     Asset *asset { findOrCreate(key, device, canonical.native(), [&](const RImageConstraints &constraints)
     {
-        return m_rasterizer.load(canonical, SkISize::Make(boxWidth, boxHeight), device, &constraints);
+        return m_rasterizer.load(canonical, SkISize::Make(boxWidth, boxHeight), device, &constraints, shadowPtr);
     }) };
 
     if (!asset)

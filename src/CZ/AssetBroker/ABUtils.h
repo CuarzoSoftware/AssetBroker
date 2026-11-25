@@ -3,6 +3,7 @@
 
 #include <CZ/AssetBroker/ABIconKey.h>
 #include <CZ/AssetBroker/ABGenKey.h>
+#include <CZ/AssetBroker/ABShadow.h>
 #include <CZ/Ream/Ream.h>
 #include <CZ/Ream/DRM/RDRMFormat.h>
 #include <sys/types.h>
@@ -62,6 +63,9 @@ namespace CZ::ABUtils
 
     /// A string identifying @p key (for cache keys).
     std::string IconKeyString(const ABIconKey &key) noexcept;
+
+    /// A string identifying @p shadow (for cache keys), empty for nullptr.
+    std::string ShadowString(const ABShadow *shadow) noexcept;
 
     /// A string identifying @p key (for cache keys).
     std::string GenKeyString(const ABGenKey &key) noexcept;

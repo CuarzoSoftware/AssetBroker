@@ -122,7 +122,7 @@ bool ABCore::shouldFallBack() const noexcept
            m_remote->lastStatus() == ABProtocol::Status::Ok; // But the import failed
 }
 
-std::shared_ptr<RImage> ABCore::icon(const ABIconKey &key, SkISize box, RDevice *device) noexcept
+std::shared_ptr<RImage> ABCore::icon(const ABIconKey &key, SkISize box, RDevice *device, const ABShadow *shadow) noexcept
 {
     auto ream { RCore::Get() };
 
@@ -142,12 +142,13 @@ std::shared_ptr<RImage> ABCore::icon(const ABIconKey &key, SkISize box, RDevice 
 
     if (remote())
     {
-        const std::string cacheKey { std::format("icon:{}:{}x{}:{}", device->id(), box.width(), box.height(), ABUtils::IconKeyString(key)) };
+        const std::string cacheKey { std::format("icon:{}:{}x{}:{}:{}", device->id(), box.width(), box.height(),
+                                                 ABUtils::ShadowString(shadow), ABUtils::IconKeyString(key)) };
 
         if (auto image { cached(cacheKey) })
             return image;
 
-        auto result { m_remote->loadIcon(key, box, device) };
+        auto result { m_remote->loadIcon(key, box, device, shadow) };
 
         if (result.image)
             return store(cacheKey, std::move(result.image), std::move(result.keepAlive));
@@ -172,18 +173,18 @@ std::shared_ptr<RImage> ABCore::icon(const ABIconKey &key, SkISize box, RDevice 
         return {};
     }
 
-    const std::string cacheKey { std::format("{}:{}x{}:{}", device->id(), box.width(), box.height(), path.native()) };
+    const std::string cacheKey { std::format("{}:{}x{}:{}:{}", device->id(), box.width(), box.height(), ABUtils::ShadowString(shadow), path.native()) };
 
     if (auto image { cached(cacheKey) })
         return image;
 
-    auto result { m_local->load(path, box, device) };
+    auto result { m_local->load(path, box, device, shadow) };
     return result.image ? store(cacheKey, std::move(result.image), std::move(result.keepAlive)) : nullptr;
 }
 
-ABCore::ImageProvider ABCore::IconProvider(const ABIconKey &key, RDevice *device) noexcept
+ABCore::ImageProvider ABCore::IconProvider(const ABIconKey &key, RDevice *device, std::optional<ABShadow> shadow) noexcept
 {
-    return [key, device](Int32 pixelSize, Int32 scale) -> std::shared_ptr<RImage>
+    return [key, device, shadow](Int32 pixelSize, Int32 scale) -> std::shared_ptr<RImage>
     {
         auto core { ABCore::Get() };
 
@@ -193,8 +194,19 @@ ABCore::ImageProvider ABCore::IconProvider(const ABIconKey &key, RDevice *device
         ABIconKey sized { key };
         sized.scale = std::max(1, scale);
         pixelSize = std::max(1, pixelSize);
-        sized.size = (pixelSize + sized.scale - 1) / sized.scale;
-        return core->icon(sized, SkISize::Make(pixelSize, pixelSize), device);
+
+        if (!shadow)
+        {
+            sized.size = (pixelSize + sized.scale - 1) / sized.scale;
+            return core->icon(sized, SkISize::Make(pixelSize, pixelSize), device);
+        }
+
+        // The icon is what's left inside the shadow's padding
+        ABShadow padded { *shadow };
+        padded.padding = ABShadow::PaddingFor(pixelSize, shadow->radius);
+        const Int32 iconPixels { std::max(1, pixelSize - 2 * padded.padding) };
+        sized.size = (iconPixels + sized.scale - 1) / sized.scale;
+        return core->icon(sized, SkISize::Make(pixelSize, pixelSize), device, &padded);
     };
 }
 
@@ -229,7 +241,7 @@ std::shared_ptr<RImage> ABCore::generate(const ABGenKey &key, RDevice *device) n
     return result.image ? store(cacheKey, std::move(result.image), std::move(result.keepAlive)) : nullptr;
 }
 
-std::shared_ptr<RImage> ABCore::image(const std::filesystem::path &path, SkISize box, RDevice *device) noexcept
+std::shared_ptr<RImage> ABCore::image(const std::filesystem::path &path, SkISize box, RDevice *device, const ABShadow *shadow) noexcept
 {
     auto ream { RCore::Get() };
 
@@ -252,7 +264,7 @@ std::shared_ptr<RImage> ABCore::image(const std::filesystem::path &path, SkISize
     box.fWidth = std::max(0, box.fWidth);
     box.fHeight = std::max(0, box.fHeight);
 
-    const std::string key { std::format("{}:{}x{}:{}", device->id(), box.width(), box.height(), canonical.native()) };
+    const std::string key { std::format("{}:{}x{}:{}:{}", device->id(), box.width(), box.height(), ABUtils::ShadowString(shadow), canonical.native()) };
 
     if (auto image { cached(key) })
         return image;
@@ -262,13 +274,13 @@ std::shared_ptr<RImage> ABCore::image(const std::filesystem::path &path, SkISize
 
     if (remote())
     {
-        result = m_remote->load(canonical, box, device);
+        result = m_remote->load(canonical, box, device, shadow);
 
         if (!result.image && shouldFallBack())
-            result = m_local->load(canonical, box, device);
+            result = m_local->load(canonical, box, device, shadow);
     }
     else if (m_mode != ABMode::Remote)
-        result = m_local->load(canonical, box, device);
+        result = m_local->load(canonical, box, device, shadow);
 
     return result.image ? store(key, std::move(result.image), std::move(result.keepAlive)) : nullptr;
 }

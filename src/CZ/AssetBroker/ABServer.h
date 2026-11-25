@@ -63,7 +63,7 @@ private:
     bool handleLoadIcon(Client &client, const char *data, size_t size) noexcept;
     bool handleRelease(Client &client, const char *data, size_t size) noexcept;
     bool sendAsset(Client &client, ABProtocol::LoadReply &reply, const std::filesystem::path &path,
-                   Int32 boxWidth, Int32 boxHeight, UInt64 deviceId) noexcept;
+                   Int32 boxWidth, Int32 boxHeight, UInt64 deviceId, const ABProtocol::Shadow &shadow) noexcept;
     bool sendFailure(Client &client, ABProtocol::LoadReply &reply, ABProtocol::Status status) noexcept;
     bool handleGenerate(Client &client, const char *data, size_t size) noexcept;
     bool sendReply(Client &client, ABProtocol::LoadReply &reply, Asset &asset) noexcept;

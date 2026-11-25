@@ -31,10 +31,10 @@ public:
     ~ABRemoteBackend() noexcept;
 
     /// Fails (empty Result) if the service couldn't load it or the connection is lost (see connected()).
-    Result load(const std::filesystem::path &path, SkISize box, RDevice *device) noexcept override;
+    Result load(const std::filesystem::path &path, SkISize box, RDevice *device, const ABShadow *shadow = nullptr) noexcept override;
 
     /// Looks up and rasterizes an icon in the service. Fails like load().
-    Result loadIcon(const ABIconKey &key, SkISize box, RDevice *device) noexcept;
+    Result loadIcon(const ABIconKey &key, SkISize box, RDevice *device, const ABShadow *shadow = nullptr) noexcept;
 
     /// Asks the service to draw a generated asset. Fails like load().
     Result generate(const ABGenKey &key, RDevice *device) noexcept;

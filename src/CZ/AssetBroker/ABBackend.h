@@ -18,9 +18,10 @@ public:
     /**
      * @brief Rasterizes @p path fitted in @p box for @p device (never nullptr).
      *
-     * @p path must be canonical. Result::keepAlive must be held as long as the image.
+     * @p path must be canonical. Result::keepAlive must be held as long as the image. @p shadow:
+     * see ABShadow (nullptr: none).
      */
-    virtual Result load(const std::filesystem::path &path, SkISize box, RDevice *device) noexcept = 0;
+    virtual Result load(const std::filesystem::path &path, SkISize box, RDevice *device, const ABShadow *shadow = nullptr) noexcept = 0;
 
     /// Whether images come from the service.
     virtual bool remote() const noexcept = 0;

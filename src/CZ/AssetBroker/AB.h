@@ -23,6 +23,7 @@ namespace CZ
     class ABServer;
     struct ABIconKey;
     struct ABGenKey;
+    struct ABShadow;
 
     /**
      * @brief Where assets are generated.

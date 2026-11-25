@@ -3,12 +3,14 @@
 
 #include <CZ/AssetBroker/ABIconKey.h>
 #include <CZ/AssetBroker/ABGenKey.h>
+#include <CZ/AssetBroker/ABShadow.h>
 #include <CZ/Core/CZTimer.h>
 #include <CZ/Ream/Ream.h>
 #include <CZ/skia/core/SkSize.h>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -75,17 +77,26 @@ public:
      *               height leaves that dimension unconstrained. {0, 0}: a square of
      *               key.size * key.scale pixels.
      * @param device DRM device the image is for. nullptr: Ream's main device.
+     * @param shadow Draws the icon over a drop shadow (see ABShadow): the image is still @p box,
+     *               the icon fitted in it minus the shadow's padding. nullptr: no shadow.
      * @return nullptr if no icon is found or it can't be loaded.
      */
-    std::shared_ptr<RImage> icon(const ABIconKey &key, SkISize box = {0, 0}, RDevice *device = nullptr) noexcept;
+    std::shared_ptr<RImage> icon(const ABIconKey &key, SkISize box = {0, 0}, RDevice *device = nullptr,
+                                 const ABShadow *shadow = nullptr) noexcept;
 
     /**
      * @brief For AKImageFrame::setImageProvider(): @p key at the size it's drawn at.
      *
      * For each pixel size and scale, looks up the icon with size = ceil(pixelSize / scale) and that
      * scale (the theme may have artwork made for it) and fits it in a pixelSize square.
+     *
+     * With a @p shadow, the image is the pixelSize square with the icon and its shadow: the icon is
+     * smaller, the shadow's padding is ABShadow::PaddingFor(pixelSize, shadow->radius) (the
+     * @ref ABShadow::padding given is ignored). The frame should then extend past the icon's area
+     * by @ref ABShadow::radius times the icon size on each side.
      */
-    static ImageProvider IconProvider(const ABIconKey &key, RDevice *device = nullptr) noexcept;
+    static ImageProvider IconProvider(const ABIconKey &key, RDevice *device = nullptr,
+                                      std::optional<ABShadow> shadow = std::nullopt) noexcept;
 
     /**
      * @brief Draws a generated asset (see ABGenerators), e.g. Kay's theme assets.
@@ -104,9 +115,11 @@ public:
      * @param box    Fits the image in this box (keeping its aspect ratio), in pixels. A 0 width
      *               or height leaves that dimension unconstrained; {0, 0} uses the file's size.
      * @param device DRM device the image is for. nullptr: Ream's main device.
+     * @param shadow Draws the image over a drop shadow (see ABShadow, icon()). nullptr: none.
      * @return nullptr on failure.
      */
-    std::shared_ptr<RImage> image(const std::filesystem::path &path, SkISize box = {0, 0}, RDevice *device = nullptr) noexcept;
+    std::shared_ptr<RImage> image(const std::filesystem::path &path, SkISize box = {0, 0}, RDevice *device = nullptr,
+                                  const ABShadow *shadow = nullptr) noexcept;
 
     /**
      * @brief The XDGKit used for local icon lookups (created on first use if none was set).

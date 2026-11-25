@@ -2,11 +2,13 @@
 #define CZ_ABRASTERIZER_H
 
 #include <CZ/AssetBroker/ABGenKey.h>
+#include <CZ/AssetBroker/ABShadow.h>
 #include <CZ/Ream/Ream.h>
 #include <CZ/Ream/RImage.h>
 #include <CZ/Core/CZBitset.h>
 #include <CZ/skia/core/SkSize.h>
 #include <CZ/skia/core/SkRefCnt.h>
+#include <CZ/skia/core/SkBitmap.h>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -42,9 +44,18 @@ public:
      *                    dimension unconstrained; {0, 0} uses the file's own size.
      * @param device      Device the image is allocated on (nullptr: Ream's main device).
      * @param constraints Extra allocation constraints (the allocator is always @p device).
+     * @param shadow      Draws the image over a drop shadow (see ABShadow). nullptr: none.
      */
     Result load(const std::filesystem::path &path, SkISize box, RDevice *device,
-                const RImageConstraints *constraints = nullptr) noexcept;
+                const RImageConstraints *constraints = nullptr, const ABShadow *shadow = nullptr) noexcept;
+
+    /**
+     * @brief Draws @p content over its drop shadow (see ABShadow) in a new bitmap.
+     *
+     * The result is @p box (each 0 dimension: the content's plus the padding), the content
+     * centered at a whole pixel offset.
+     */
+    static bool DrawShadow(const SkBitmap &content, SkISize box, const ABShadow &shadow, SkBitmap &out) noexcept;
 
     /**
      * @brief Draws a generated asset (see ABGenerators) for @p device.
