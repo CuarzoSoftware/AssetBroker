@@ -2,6 +2,11 @@
 #include <CZ/AssetBroker/ABLog.h>
 #include <CZ/Ream/RCore.h>
 #include <CZ/Ream/RDevice.h>
+#include <CZ/Ream/RImage.h>
+#include <CZ/Ream/GBM/RGBMBo.h>
+#include <CZ/Core/CZBitset.h>
+#include <unordered_map>
+#include <vector>
 #include <CZ/Ream/DRM/RDRMPlatformHandle.h>
 #include <CZ/XDG/XDGKit.h>
 #include <CZ/XDG/XDGIconThemeManager.h>
@@ -71,6 +76,112 @@ std::optional<RDRMFormat> ABUtils::IconFormat(RDevice *device) noexcept
     }
 
     return {};
+}
+
+// Whether an image of @p format on @p device goes all the way to a client: its modifier if so
+static std::optional<RModifier> TryShareable(RDevice *device, const RDRMFormat &format) noexcept
+{
+    static constexpr Int32 Size { 8 };
+    UInt32 pixels[Size * Size];
+
+    for (UInt32 &pixel : pixels)
+        pixel = 0xFF336699;
+
+    RImageConstraints constraints {};
+    constraints.allocator = device;
+    constraints.caps[device] = RImageCap_GBMBo;
+
+    RPixelBufferInfo info {};
+    info.size = SkISize::Make(Size, Size);
+    info.stride = Size * sizeof(UInt32);
+    info.format = format.format();
+    info.pixels = reinterpret_cast<UInt8*>(pixels);
+
+    // Allocated and written
+    auto image { RImage::MakeFromPixels(info, format, &constraints) };
+    auto bo { image ? image->gbmBo(device) : nullptr };
+
+    if (!bo)
+        return {};
+
+    // Exported
+    auto dma { bo->dmaExport() };
+
+    if (!dma)
+        return {};
+
+    // Imported, as a client would
+    RImageConstraints importConstraints {};
+    importConstraints.allocator = device;
+
+    if (!RImage::FromDMA(*dma, CZOwn::Own, &importConstraints))
+        return {};
+
+    return bo->modifier();
+}
+
+std::optional<RDRMFormat> ABUtils::ShareableFormat(RDevice *device) noexcept
+{
+    if (!device)
+        return {};
+
+    // Devices live as long as the RCore (the service's lifetime)
+    static std::unordered_map<RDevice*, std::optional<RDRMFormat>> cache;
+
+    if (auto it { cache.find(device) }; it != cache.end())
+        return it->second;
+
+    std::optional<RDRMFormat> chosen;
+    const auto &texture { device->textureFormats().formats() };
+    const auto &render { device->renderFormats().formats() };
+
+    for (const RFormat fourcc : { DRM_FORMAT_ABGR8888, DRM_FORMAT_ARGB8888 })
+    {
+        const auto tex { texture.find(fourcc) };
+
+        if (tex == texture.end())
+            continue;
+
+        // Textured from and rendered to (a client draws them, the service may have to draw into
+        // them), then anything textured from
+        std::vector<RDRMFormat> candidates;
+
+        if (const auto ren { render.find(fourcc) }; ren != render.end())
+        {
+            RDRMFormat both { fourcc, {} };
+
+            for (const RModifier modifier : tex->modifiers())
+                if (ren->modifiers().contains(modifier))
+                    both.addModifier(modifier);
+
+            if (!both.modifiers().empty())
+                candidates.emplace_back(std::move(both));
+        }
+
+        candidates.emplace_back(*tex);
+
+        for (const RDRMFormat &candidate : candidates)
+        {
+            if (const auto modifier { TryShareable(device, candidate) })
+            {
+                chosen = RDRMFormat(fourcc, { *modifier });
+                break;
+            }
+        }
+
+        if (chosen)
+            break;
+    }
+
+    if (chosen)
+        ABLog(CZInfo, CZLN, "Assets of {} ({}) are shared as {} with modifier {}", device->drmNode(), device->drmDriverName(),
+              RDRMFormat::FormatName(chosen->format()), RDRMFormat::ModifierName(*chosen->modifiers().begin()));
+    else
+        ABLog(CZError, CZLN, "No format of {} ({}) can be allocated, written, exported and imported: its assets can't be shared",
+              device->drmNode(), device->drmDriverName());
+
+    cache[device] = chosen;
+    return chosen;
 }
 
 std::vector<int> ABUtils::OpenRenderNodes() noexcept

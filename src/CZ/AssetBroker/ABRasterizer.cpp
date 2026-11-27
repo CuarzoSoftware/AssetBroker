@@ -116,6 +116,17 @@ static bool HasSVGExtension(const std::filesystem::path &path) noexcept
     return ext == ".svg";
 }
 
+// Shared with other processes (the service asks for a GBM buffer on the device): the format the
+// service found to work for that (see ABUtils::ShareableFormat()). Otherwise the device's own
+static std::optional<RDRMFormat> FormatFor(RDevice *device, const RImageConstraints *constraints) noexcept
+{
+    if (constraints)
+        if (const auto caps { constraints->caps.find(device) }; caps != constraints->caps.end() && caps->second.has(RImageCap_GBMBo))
+            return ABUtils::ShareableFormat(device);
+
+    return ABUtils::IconFormat(device);
+}
+
 static std::shared_ptr<RImage> Upload(const SkBitmap &bitmap, const RDRMFormat &format, const RImageConstraints &constraints) noexcept
 {
     if (!bitmap.getPixels())
@@ -147,7 +158,7 @@ ABRasterizer::Result ABRasterizer::generate(const ABGenKey &key, RDevice *device
         return {};
     }
 
-    const auto format { ABUtils::IconFormat(device) };
+    const auto format { FormatFor(device, constraints) };
 
     if (!format)
         return {};
@@ -220,7 +231,7 @@ ABRasterizer::Result ABRasterizer::load(const std::filesystem::path &path, SkISi
     if (!device)
         device = core->mainDevice();
 
-    const auto format { ABUtils::IconFormat(device) };
+    const auto format { FormatFor(device, constraints) };
 
     if (!format)
     {

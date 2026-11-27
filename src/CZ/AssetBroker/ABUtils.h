@@ -37,6 +37,25 @@ namespace CZ::ABUtils
     std::optional<RDRMFormat> IconFormat(RDevice *device) noexcept;
 
     /**
+     * @brief The format (and the one modifier) the service stores assets in on @p device, so every
+     *        client rendering with that device can use them: chosen by the service, not by clients.
+     *
+     * Found once per device by trying it for real, since what a driver lists isn't always what it
+     * can do (e.g. NVIDIA's GBM buffers can't be mapped, and some of the modifiers it textures from
+     * can't be rendered to). A small image must be:
+     * - allocated as a GBM buffer on the device,
+     * - written with pixels (mapped, or drawn into where buffers can't be mapped),
+     * - exported as a DMA-buf, and
+     * - imported back on the device (what clients do with it).
+     *
+     * ABGR8888 then ARGB8888, with the modifiers the device both textures from and renders to
+     * first, then every one it textures from. The modifier the buffer got is the one kept.
+     *
+     * @return Nothing if no format passes (logged): the device can't share assets.
+     */
+    std::optional<RDRMFormat> ShareableFormat(RDevice *device) noexcept;
+
+    /**
      * @brief Opens the render node of every GPU (O_RDWR | O_CLOEXEC).
      *
      * For headless processes (the service, tests) that create an RCore with an RDRMPlatformHandle:
